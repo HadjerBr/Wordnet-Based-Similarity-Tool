@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WordNet Similarity Tool</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="wrapper">
+
+    <h1>WordNet-Based Similarity Tool</h1>
+    <p class="subtitle">Compute semantic similarity using WordNet graph paths.</p>
+
+    <div class="card">
+        <form method="POST" onsubmit="showLoader()">
+            <div class="field">
+                <label>Word 1</label>
+                <input type="text" id="w1" name="word1" autocomplete="off" required>
+                <ul class="suggestions" id="s1"></ul>
+            </div>
+
+            <div class="field">
+                <label>Word 2</label>
+                <input type="text" id="w2" name="word2" autocomplete="off" required>
+                <ul class="suggestions" id="s2"></ul>
+            </div>
+
+            <div class="actions">
+                <button type="submit">Compute</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="loader" class="loader hidden"></div>
+
+    {% if result %}
+        {% if result.error %}
+            <div class="result-card error">{{ result.error }}</div>
+        {% else %}
+            <div class="result-card {{ 'high' if result.score >= 0.7 else 'med' if result.score >= 0.3 else 'low' }}">
+                <b>Similarity score:</b> {{ result.score }}<br>
+                <b>Path length:</b> {{ result.dist }}<br><br>
+
+                <b>Path:</b><br>
+                {{ result.path_nodes|join(' → ') }}<br><br>
+
+                <b>Definitions:</b><br>
+                {% for sid, d in result.definitions.items() %}
+                    <div class="def-item"><b>{{ sid }}</b>: {{ d }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endif %}
+
+    <footer>
+        Built by Hadjer — NLP WordNet Homework
+    </footer>
+
+</div>
+
+<script>
+function showLoader(){
+    document.getElementById("loader").classList.remove("hidden");
+}
+
+function setupAutocomplete(inputId, suggestId) {
+    const input = document.getElementById(inputId);
+    const suggestBox = document.getElementById(suggestId);
+
+    input.addEventListener("input", async () => {
+        const q = input.value;
+        if (q.length < 2) {
+            suggestBox.innerHTML = "";
+            return;
+        }
+        const res = await fetch(`/autocomplete?q=${q}`);
+        const words = await res.json();
+        suggestBox.innerHTML = words.map(w => `<li onclick="pick('${inputId}','${w}')">${w}</li>`).join("");
+    });
+}
+
+function pick(inputId, value) {
+    document.getElementById(inputId).value = value;
+    document.getElementById("s1").innerHTML = "";
+    document.getElementById("s2").innerHTML = "";
+}
+
+setupAutocomplete("w1", "s1");
+setupAutocomplete("w2", "s2");
+</script>
+
+</body>
+</html>

@@ -1,0 +1,115 @@
+body {
+    margin: 0;
+    font-family: "Inter", sans-serif;
+    background: #f3f4f6;
+    display: flex;
+    justify-content: center;
+    padding-top: 60px;
+}
+
+.wrapper {
+    width: 600px;
+    text-align: center;
+}
+
+h1 {
+    margin: 0;
+    font-size: 30px;
+    color: #111827;
+}
+
+.subtitle {
+    color: #6b7280;
+    font-size: 15px;
+    margin-bottom: 30px;
+}
+
+.card {
+    background: white;
+    padding: 24px;
+    border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(15,23,42,0.1);
+    margin-bottom: 20px;
+}
+
+.field {
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.field input {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+}
+
+.actions button {
+    padding: 10px 22px;
+    border: none;
+    border-radius: 999px;
+    background: #2563eb;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* Result coloring */
+.result-card {
+    text-align: left;
+    padding: 20px;
+    border-radius: 12px;
+    margin: 0 auto;
+    background: white;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+}
+
+.result-card.high { border-left: 6px solid #22c55e; }
+.result-card.med  { border-left: 6px solid #eab308; }
+.result-card.low  { border-left: 6px solid #ef4444; }
+
+.error { border-left: 6px solid #ef4444; }
+
+/* Loader */
+.loader {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #d1d5db;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    margin: 15px auto;
+}
+
+.hidden { display: none; }
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Autocomplete */
+.suggestions {
+    list-style: none;
+    margin: 5px 0 0;
+    padding: 0;
+    border: 1px solid #d1d5db;
+    background: white;
+    border-radius: 6px;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.suggestions li {
+    padding: 6px 10px;
+    cursor: pointer;
+}
+
+.suggestions li:hover {
+    background: #e5e7eb;
+}
+
+footer {
+    margin-top: 30px;
+    color: #6b7280;
+    font-size: 13px;
+}

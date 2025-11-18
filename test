@@ -1,0 +1,4 @@
+from similarity import get_synset_ids, shortest_path_length, path_similarity
+
+print(get_synset_ids("dog"))
+print(get_synset_ids("cat"))
