@@ -1,69 +1,88 @@
 from neo4j import GraphDatabase
-from nltk.corpus import wordnet as wn
-import nltk
+from manual_wordnet_loader import WordNetLoader
 
-nltk.download("wordnet")
-URI = "neo4j://127.0.0.1:7687"        
+URI = "neo4j://127.0.0.1:7687"
 USER = "neo4j"
-PASSWORD = "wordnet-similarity1"      
+PASSWORD = "wordnet-similarity1"
 
 driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))
 
+# ---------------------------------------------------------
 def clear_db():
-    with driver.session() as session:
-        session.run("MATCH (n) DETACH DELETE n")
+    with driver.session() as s:
+        s.run("MATCH (n) DETACH DELETE n")
+    print("Database cleared.")
+# ---------------------------------------------------------
 
-def import_synsets(pos="n"):
-    """Create Synset nodes ."""
-    with driver.session() as session:
-        for syn in wn.all_synsets(pos):
-            session.run(
-                """
-                MERGE (s:Synset {id: $id})
-                SET s.pos = $pos,
-                    s.definition = $definition
-                """,
-                id=syn.name(),
-                pos=syn.pos(),
-                definition=syn.definition()
+def import_synsets(loader):
+    print("Importing synset nodes...")
+
+    with driver.session() as s:
+        for sid, info in loader.synsets.items():
+
+            s.run("""
+                MERGE (n:Synset {id:$id})
+                SET n.pos   = $pos,
+                    n.gloss = $gloss,
+                    n.lemmas = $lemmas
+            """,
+            id=sid,
+            pos=info["pos"],
+            gloss=info["gloss"],
+            lemmas=info["lemmas"]
             )
 
+    print("Synsets imported.")
+# ---------------------------------------------------------
 
-def import_relations(pos="n"):
-    """Create HYPERNYM_OF, HYPONYM_OF, SIMILAR_TO relations."""
-    with driver.session() as session:
-        for syn in wn.all_synsets(pos):
-            sid = syn.name()
+def import_relations(loader):
+    print("Importing relations...")
 
-            # hypernyms / hyponyms
-            for h in syn.hypernyms():
-                session.run(
-                    """
-                    MATCH (a:Synset {id: $hid}), (b:Synset {id: $cid})
+    with driver.session() as s:
+        for sid, info in loader.synsets.items():
+
+            # ---------- Hypernym ----------
+            for h in info["relations"]["hypernym"]:
+                s.run("""
+                    MATCH (a:Synset {id:$a}), (b:Synset {id:$b})
                     MERGE (a)-[:HYPERNYM_OF]->(b)
                     MERGE (b)-[:HYPONYM_OF]->(a)
-                    """,
-                    hid=h.name(), cid=sid
-                )
+                """, a=h, b=sid)
 
-            # similar_to
-            for s2 in syn.similar_tos():
-                session.run(
-                    """
-                    MATCH (a:Synset {id: $a}), (b:Synset {id: $b})
+            # ---------- Hyponym ----------
+            for hypo in info["relations"]["hyponym"]:
+                s.run("""
+                    MATCH (a:Synset {id:$a}), (b:Synset {id:$b})
+                    MERGE (a)-[:HYPONYM_OF]->(b)
+                    MERGE (b)-[:HYPERNYM_OF]->(a)
+                """, a=hypo, b=sid)
+
+            # ---------- Similar-to ----------
+            for sim in info["relations"]["similar"]:
+                s.run("""
+                    MATCH (a:Synset {id:$a}), (b:Synset {id:$b})
                     MERGE (a)-[:SIMILAR_TO]->(b)
-                    """,
-                    a=sid, b=s2.name()
-                )
+                """, a=sid, b=sim)
 
+            # ---------- Part-of / Meronym ----------
+            for part in info["relations"]["meronym"]:
+                s.run("""
+                    MATCH (p:Synset {id:$p}), (w:Synset {id:$w})
+                    MERGE (p)-[:PART_OF]->(w)
+                """, p=part, w=sid)
+
+    print("Relations imported.")
+# ---------------------------------------------------------
 
 if __name__ == "__main__":
-    print("Clearing database…")
-    clear_db()
-    print("Importing synsets…")
-    import_synsets("n")        
-    print("Importing relations…")
-    import_relations("n")
-    print("Done.")
-    driver.close()
+    loader = WordNetLoader(r"C:\Program Files (x86)\WordNet\2.1\dict")
+    loader.load()
 
+    print("Total synsets loaded from WN:", len(loader.synsets))
+    print("Importing into Neo4j...")
+
+    clear_db()
+    import_synsets(loader)
+    import_relations(loader)
+
+    print("DONE.")

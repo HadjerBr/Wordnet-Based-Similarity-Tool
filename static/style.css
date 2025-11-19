@@ -113,3 +113,20 @@ footer {
     color: #6b7280;
     font-size: 13px;
 }
+.path-lines {
+    margin-top: 4px;
+    margin-bottom: 8px;
+}
+
+.path-step {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 13px;
+}
+
+.path-step .node {
+    color: #111827;
+}
+
+.path-step .edge {
+    color: #6b7280;
+}
