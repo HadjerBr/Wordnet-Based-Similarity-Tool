@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify
-from similarity import path_similarity, get_synset_ids
+from similarity import path_similarity, autocomplete_words
+
 
 app = Flask(__name__)
 
@@ -21,14 +22,15 @@ def index():
 
     return render_template("index.html", result=result)
 
-
 @app.route("/autocomplete")
 def autocomplete():
-    q = request.args.get("q", "")
+    q = request.args.get("q", "").strip()
     if not q:
         return jsonify([])
 
-    return jsonify(get_synset_ids(q))
+    suggestions = autocomplete_words(q)
+    return jsonify(suggestions)
+
 
 
 if __name__ == "__main__":

@@ -1,4 +1,8 @@
 from neo4j import GraphDatabase
+import nltk
+from nltk.corpus import wordnet as wn
+
+nltk.download("wordnet")
 
 URI = "neo4j://127.0.0.1:7687"
 USER = "neo4j"
@@ -6,68 +10,89 @@ PASSWORD = "wordnet-similarity1"
 
 driver = GraphDatabase.driver(URI, auth=(USER, PASSWORD))
 
+# ---------- AUTOCOMPLETE (word-level, not synset IDs) ----------
 
-def get_synset_ids(word):
+WORDLIST = sorted({
+    lemma.replace("_", " ").lower()
+    for syn in wn.all_synsets("n")
+    for lemma in syn.lemma_names()
+})
+
+def autocomplete_words(prefix: str, limit: int = 8):
+    prefix = prefix.lower()
+    return [w for w in WORDLIST if w.startswith(prefix)][:limit]
+
+
+# ---------- CORE GRAPH HELPERS ----------
+
+def shortest_path_with_details(id1: str, id2: str):
+    """Return (nodes, relations, distance) for shortest path between two synset IDs."""
+    # If it’s exactly the same synset, no need to query Neo4j.
+    if id1 == id2:
+        return [id1], [], 0
+
+    query = """
+    MATCH (a:Synset {id:$id1}), (b:Synset {id:$id2})
+    MATCH p = shortestPath((a)-[:HYPERNYM_OF|HYPONYM_OF|SIMILAR_TO*..10]-(b))
+    RETURN p
+    """
     with driver.session() as session:
-        q = """
-        MATCH (s:Synset)
-        WHERE s.id STARTS WITH $word AND s.id CONTAINS ".n."
-        RETURN s.id LIMIT 5
-        """
-        res = session.run(q, word=word.lower())
-        return [r["s.id"] for r in res]
-
-
-def shortest_path_with_details(id1, id2):
-    with driver.session() as session:
-        q = """
-        MATCH (a:Synset {id:$id1}), (b:Synset {id:$id2})
-        MATCH p = shortestPath((a)-[:HYPERNYM_OF|HYPONYM_OF|SIMILAR_TO*]-(b))
-        RETURN p
-        """
-        result = session.run(q, id1=id1, id2=id2).single()
-        if not result:
+        record = session.run(query, id1=id1, id2=id2).single()
+        if not record:
             return None, None, None
 
-        path = result["p"]
+        path = record["p"]
         nodes = [n["id"] for n in path.nodes]
         rels = [type(r).__name__ for r in path.relationships]
-
-        return nodes, rels, len(nodes) - 1
+        dist = len(nodes) - 1
+        return nodes, rels, dist
 
 
 def get_definitions(ids):
+    """Return dict {synset_id: definition} for given synset ids."""
+    if not ids:
+        return {}
+    query = """
+    MATCH (s:Synset)
+    WHERE s.id IN $ids
+    RETURN s.id AS id, s.definition AS def
+    """
     with driver.session() as session:
-        q = """
-        MATCH (s:Synset)
-        WHERE s.id IN $ids
-        RETURN s.id AS id, s.definition AS def
-        """
-        return {r["id"]: r["def"] for r in session.run(q, ids=ids)}
+        return {r["id"]: r["def"] for r in session.run(query, ids=ids)}
 
 
-def path_similarity(word1, word2):
-    s1 = get_synset_ids(word1)
-    s2 = get_synset_ids(word2)
-    if not s1 or not s2:
+# ---------- PATH SIMILARITY ----------
+
+def path_similarity(word1: str, word2: str, pos: str = "n"):
+    """
+    Compute path-based similarity between two words using ONLY
+    their first noun sense in WordNet.
+    """
+
+    syns1 = wn.synsets(word1, pos=pos)
+    syns2 = wn.synsets(word2, pos=pos)
+
+    if not syns1 or not syns2:
+        return None  # one of the words has no noun senses
+
+    s1 = syns1[0]   # take most frequent noun sense
+    s2 = syns2[0]
+
+    id1, id2 = s1.name(), s2.name()
+
+    nodes, rels, dist = shortest_path_with_details(id1, id2)
+    if nodes is None or dist is None:
         return None
 
-    s1 = s1[0]
-    s2 = s2[0]
-
-    nodes, rels, dist = shortest_path_with_details(s1, s2)
-    if not nodes:
-        return None
-
-    sim = 1 / dist if dist > 0 else 1.0
-    defs = get_definitions(nodes)
+    sim = 1.0 / (1.0 + dist)
 
     return {
         "score": round(sim, 4),
         "path_nodes": nodes,
         "rels": rels,
-        "definitions": defs,
-        "syn1": s1,
-        "syn2": s2,
-        "dist": dist
+        "definitions": get_definitions(nodes),
+        "syn1": id1,
+        "syn2": id2,
+        "dist": dist,
     }
+
