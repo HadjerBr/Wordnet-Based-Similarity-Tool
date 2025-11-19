@@ -39,17 +39,54 @@
             <div class="result-card error">{{ result.error }}</div>
         {% else %}
             <div class="result-card {{ 'high' if result.score >= 0.7 else 'med' if result.score >= 0.3 else 'low' }}">
+
                 <b>Similarity score:</b> {{ result.score }}<br>
-                <b>Best senses:</b> {{ result.syn1 }} ↔ {{ result.syn2 }}<br><br>
+
+                <b>Best senses:</b>
+                <b>{{ result.syn1_lemmas | join(', ') }}</b> ↔
+                <b>{{ result.syn2_lemmas | join(', ') }}</b><br><br>
+
                 <b>Path length:</b> {{ result.dist }}<br><br>
 
                 <b>Path:</b><br>
-                {{ result.path_nodes|join(' → ') }}<br><br>
+                {% if result.path_nodes and result.path_nodes|length > 1 %}
+                    <div class="path-lines">
+                        {% for i in range(result.path_nodes|length - 1) %}
+                            <b>{{ result.path_nodes[i].lemmas | join(', ') }}</b>
+                            <!-- ({{ result.path_nodes[i].id }}) -->
+                            <!-- – {{ result.rels[i] }} → -->
+                             {% set rel = result.rels[i] %}
+                             {% if rel in ['HYPERNYM_OF', 'HYPONYM_OF'] %}
+                                 – is-a →
+                             {% elif rel == 'SIMILAR_TO' %}
+                                 – similar-to →
+                             {% elif rel in ['PART_OF', 'MERONYM_OF', 'HOLONYM_OF'] %}
+                                 – part-of →
+                             {% else %}
+                                 – {{ rel }} →
+                             {% endif %}
+
+                            <b>{{ result.path_nodes[i+1].lemmas | join(', ') }}</b>
+                            <!-- ({{ result.path_nodes[i+1].id }}) -->
+                            <br>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    {{ result.path_nodes|join(' → ') }}
+                {% endif %}
+                <br>
 
                 <b>Definitions:</b><br>
                 {% for sid, d in result.definitions.items() %}
-                    <div class="def-item"><b>{{ sid }}</b>: {{ d }}</div>
+                    <div class="def-item">
+                        <b>{{ d.lemmas | join(', ') }}</b>
+                        <span class="sid">
+                            <!-- ({{ sid }}) -->
+                        </span>:
+                        {{ d.gloss }}
+                    </div>
                 {% endfor %}
+
             </div>
         {% endif %}
     {% endif %}
@@ -59,6 +96,7 @@
     </footer>
 
 </div>
+
 
 <script>
 function showLoader(){
@@ -77,7 +115,9 @@ function setupAutocomplete(inputId, suggestId) {
         }
         const res = await fetch(`/autocomplete?q=${q}`);
         const words = await res.json();
-        suggestBox.innerHTML = words.map(w => `<li onclick="pick('${inputId}','${w}')">${w}</li>`).join("");
+        suggestBox.innerHTML = words
+            .map(w => `<li onclick="pick('${inputId}','${w}')">${w}</li>`)
+            .join("");
     });
 }
 
